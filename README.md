@@ -1,6 +1,6 @@
 # Grenoble Map with Itinerary Planner
 
-This project is a React-based web application that allows users to plan itineraries in Grenoble, France. Users can set start and end points on a map, choose between walking and biking modes, and view the travel time and distance. The application uses the OpenTripPlanner (OTP) API to fetch route data and displays it on an interactive map powered by Leaflet.
+This project is a React-based web application that allows users to plan itineraries in Grenoble, France. Users can set start and end points on a map, choose between walking and biking modes, and view the travel time and distance. The application uses the MTag API to fetch route data and displays it on an interactive map powered by Leaflet.
 
 ## Features
 
