@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem} from "@/components/ui/select.jsx"
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Bike, Footprints, Train, ArrowLeft, ArrowRight } from "lucide-react";
+import { Bike, Footprints, Train, ArrowLeft, ArrowRight, Bus, Car } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -35,6 +35,42 @@ const endIcon = new L.Icon({
     popupAnchor: [1, -34],
     shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
 });
+
+// Function to get color based on transport mode
+const getRouteColor = (mode) => {
+    switch (mode) {
+        case "TRAM":
+            return "red"; // Tram routes in red
+        case "BUS":
+            return "orange"; // Bus routes in orange
+        case "BICYCLE":
+            return "green"; // Bike routes in green
+        case "WALK":
+            return "blue"; // Walking routes in blue
+        case "CAR":
+            return "gray"; // Car routes in gray
+        default:
+            return "purple"; // Other transport modes in purple
+    }
+};
+
+// Function to get icon component based on transport mode
+const getTransportIcon = (mode) => {
+    switch (mode) {
+        case "TRAM":
+            return <Train className="h-4 w-4 mr-1" />;
+        case "BUS":
+            return <Bus className="h-4 w-4 mr-1" />;
+        case "BICYCLE":
+            return <Bike className="h-4 w-4 mr-1" />;
+        case "WALK":
+            return <Footprints className="h-4 w-4 mr-1" />;
+        case "CAR":
+            return <Car className="h-4 w-4 mr-1" />;
+        default:
+            return null;
+    }
+};
 
 function LocationMarkers({ setStart, setEnd, start, end }) {
     useMapEvents({
@@ -81,12 +117,18 @@ const ItineraryCard = ({ itinerary, index, isActive }) => {
     // Calculate total distance from all legs
     const totalDistance = itinerary.legs.reduce((sum, leg) => sum + leg.distance, 0);
 
+    // Find the primary mode for this itinerary (non-walking if possible)
+    const primaryMode = itinerary.legs.find(leg => leg.mode !== "WALK")?.mode || itinerary.legs[0].mode;
+
     return (
-        <Card className={`mb-2 ${isActive ? 'border-2 border-primary    ' : ''}`}>
+        <Card className={`mb-2 ${isActive ? 'border-2 border-primary' : ''}`}>
             <CardContent className="pt-4">
                 <div className="flex justify-between items-center">
                     <Badge variant={isActive ? "default" : "outline"} className="mb-2">Route {index + 1}</Badge>
-                    <Badge variant="secondary">{itinerary.legs[0].mode}</Badge>
+                    <div className="flex items-center">
+                        {getTransportIcon(primaryMode)}
+                        <Badge variant="secondary">{primaryMode}</Badge>
+                    </div>
                 </div>
                 <p className="text-lg font-semibold">{formatTime(itinerary.duration)}</p>
                 <p className="text-sm text-gray-600">{formatDistance(totalDistance)}</p>
@@ -99,12 +141,58 @@ const ItineraryCard = ({ itinerary, index, isActive }) => {
     );
 };
 
+// Component to render route segments with different colors
+const ColoredRouteSegments = ({ legs }) => {
+    if (!legs || legs.length === 0) return null;
+
+    return (
+        <>
+            {legs.map((leg, index) => {
+                const decodedPoints = polyline.decode(leg.legGeometry.points);
+                const color = getRouteColor(leg.mode);
+                const key = `leg-${index}-${leg.mode}`;
+
+                return (
+                    <Polyline
+                        key={key}
+                        positions={decodedPoints}
+                        color={color}
+                        weight={5}
+                        opacity={0.8}
+                    >
+                        <Popup>
+                            {leg.mode} {leg.routeShortName ? `- Line ${leg.routeShortName}` : ''}
+                            <br />
+                            {leg.distance.toFixed(0)}m - {Math.floor(leg.duration / 60)}min
+                            {leg.from && leg.to && (
+                                <>
+                                    <br />
+                                    From: {leg.from.name}
+                                    <br />
+                                    To: {leg.to.name}
+                                </>
+                            )}
+                        </Popup>
+                    </Polyline>
+                );
+            })}
+        </>
+    );
+};
+
+// Function to get display name for transport mode with tram/bus line
+const getTransportDisplayName = (leg) => {
+    if (leg.mode === "TRAM" || leg.mode === "BUS") {
+        return leg.routeShortName ? `${leg.mode} ${leg.routeShortName}` : leg.mode;
+    }
+    return leg.mode;
+};
+
 const GrenobleMap = () => {
     const [start, setStart] = useState(null);
     const [end, setEnd] = useState(null);
     const [itineraries, setItineraries] = useState([]); // Array of all available itineraries
     const [currentItineraryIndex, setCurrentItineraryIndex] = useState(0); // Current displayed itinerary
-    const [route, setRoute] = useState([]);
     const [walkSpeed, setWalkSpeed] = useState(4.8); // Default walk speed in km/h
     const [bikeSpeed, setBikeSpeed] = useState(15); // Default bike speed in km/h
     const [speedUnit, setSpeedUnit] = useState("km/h"); // Default unit
@@ -117,12 +205,13 @@ const GrenobleMap = () => {
             const fetchItinerary = async () => {
                 try {
                     const speedInMps =
-                        transportMode === "WALK" || transportMode === ""
+                        transportMode === "WALK" || transportMode === "" || transportMode === "TRAM" || transportMode === "TRANSIT"
                             ? (speedUnit === "km/h" ? walkSpeed / 3.6 : (1000 / walkSpeed) / 60)
                             : bikeSpeed / 3.6; // Convert km/h to m/s for bike
-
+                    const url = `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=2025-03-13&time=08:00:00&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}&numItineraries=3`
+                    console.log(url);
                     const response = await fetch(
-                        `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=2025-03-13&time=08:00:00&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}&numItineraries=3`
+                        url
                     );
                     const data = await response.json();
                     console.log(data);
@@ -130,16 +219,9 @@ const GrenobleMap = () => {
                         // Store all itineraries
                         setItineraries(data.plan.itineraries.slice(0, 3)); // Get up to 3 itineraries
                         setCurrentItineraryIndex(0); // Reset to first itinerary
-
-                        // Set the route for the first itinerary
-                        const itinerary = data.plan.itineraries[0];
-                        const legGeometry = itinerary.legs.map((leg) => leg.legGeometry.points);
-                        const decodedRoute = legGeometry.map((points) => polyline.decode(points));
-                        setRoute(decodedRoute.flat());
                     } else {
-                        // Clear itineraries and route if none found
+                        // Clear itineraries if none found
                         setItineraries([]);
-                        setRoute([]);
                     }
                 } catch (error) {
                     console.error("Error fetching itinerary:", error);
@@ -149,20 +231,9 @@ const GrenobleMap = () => {
         }
     }, [start, end, walkSpeed, bikeSpeed, speedUnit, transportMode]);
 
-    // Update route when current itinerary changes
-    useEffect(() => {
-        if (itineraries.length > 0 && currentItineraryIndex < itineraries.length) {
-            const itinerary = itineraries[currentItineraryIndex];
-            const legGeometry = itinerary.legs.map((leg) => leg.legGeometry.points);
-            const decodedRoute = legGeometry.map((points) => polyline.decode(points));
-            setRoute(decodedRoute.flat());
-        }
-    }, [currentItineraryIndex, itineraries]);
-
     const resetMarkers = () => {
         setStart(null);
         setEnd(null);
-        setRoute([]);
         setItineraries([]);
         setCurrentItineraryIndex(0);
     };
@@ -231,7 +302,12 @@ const GrenobleMap = () => {
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 <LocationMarkers setStart={setStart} setEnd={setEnd} start={start} end={end} />
-                {route.length > 0 && <Polyline positions={route} color="blue" />}
+
+                {/* Render colored route segments instead of a single polyline */}
+                {currentItinerary && (
+                    <ColoredRouteSegments legs={currentItinerary.legs} />
+                )}
+
             </MapContainer>
 
             {/* Control panel */}
@@ -248,7 +324,7 @@ const GrenobleMap = () => {
                         <ToggleGroupItem value="BICYCLE" aria-label="Toggle bike" className="cursor-pointer">
                             <Bike className="h-5 w-5" />
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="TRAM" aria-label="Toggle public transportation" className="cursor-pointer">
+                        <ToggleGroupItem value="TRANSIT" aria-label="Toggle public transportation" className="cursor-pointer">
                             <Train className="h-5 w-5" />
                         </ToggleGroupItem>
                     </ToggleGroup>
@@ -313,7 +389,7 @@ const GrenobleMap = () => {
                             </div>
                         </div>
 
-                        <div className="space-y-2  overflow-y-auto">
+                        <div className="space-y-2 overflow-y-auto">
                             {itineraries.map((itinerary, index) => (
                                 <div key={index} onClick={() => selectItinerary(index)} className="cursor-pointer">
                                     <ItineraryCard
@@ -330,7 +406,24 @@ const GrenobleMap = () => {
                                 <p className="font-medium">Current Route Details:</p>
                                 <p>Travel Time: {formatTime(currentItinerary.duration)}</p>
                                 <p>Distance: {formatDistance(currentItinerary.legs.reduce((sum, leg) => sum + leg.distance, 0))}</p>
-                                <p>Transport: {currentItinerary.legs.map(leg => leg.mode).join(", ")}</p>
+
+                                <div className="flex flex-wrap gap-1 mt-1 items-center">
+                                    <p>Transport: </p>
+                                    {currentItinerary.legs.map((leg, idx) => (
+                                        <Badge
+                                            key={idx}
+                                            variant="outline"
+                                            className="ml-1 flex items-center"
+                                            style={{
+                                                backgroundColor: getRouteColor(leg.mode) + '20',
+                                                borderColor: getRouteColor(leg.mode)
+                                            }}
+                                        >
+                                            {getTransportIcon(leg.mode)}
+                                            {getTransportDisplayName(leg)}
+                                        </Badge>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
