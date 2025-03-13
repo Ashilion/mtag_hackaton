@@ -6,8 +6,10 @@ import polyline from "@mapbox/polyline"; // For decoding OTP's polyline
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem} from "@/components/ui/select.jsx"
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"; // Import ToggleGroup
-import { Bike, Footprints } from "lucide-react"; // Import icons for bike and walk
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Bike, Footprints, Train, ArrowLeft, ArrowRight } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -61,12 +63,48 @@ function LocationMarkers({ setStart, setEnd, start, end }) {
     );
 }
 
+// Component to display itinerary details
+const ItineraryCard = ({ itinerary, index, isActive }) => {
+    const formatTime = (seconds) => {
+        if (!seconds) return "Not set";
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
+    };
+
+    const formatDistance = (meters) => {
+        if (!meters) return "Not set";
+        return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters.toFixed(0)} m`;
+    };
+
+    // Calculate total distance from all legs
+    const totalDistance = itinerary.legs.reduce((sum, leg) => sum + leg.distance, 0);
+
+    return (
+        <Card className={`mb-2 ${isActive ? 'border-2 border-primary    ' : ''}`}>
+            <CardContent className="pt-4">
+                <div className="flex justify-between items-center">
+                    <Badge variant={isActive ? "default" : "outline"} className="mb-2">Route {index + 1}</Badge>
+                    <Badge variant="secondary">{itinerary.legs[0].mode}</Badge>
+                </div>
+                <p className="text-lg font-semibold">{formatTime(itinerary.duration)}</p>
+                <p className="text-sm text-gray-600">{formatDistance(totalDistance)}</p>
+                <div className="flex mt-2 text-xs text-gray-500 gap-2">
+                    <p>Depart: {new Date(itinerary.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} </p>
+                    <p className="ml-auto">Arrive: {new Date(itinerary.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
 const GrenobleMap = () => {
     const [start, setStart] = useState(null);
     const [end, setEnd] = useState(null);
+    const [itineraries, setItineraries] = useState([]); // Array of all available itineraries
+    const [currentItineraryIndex, setCurrentItineraryIndex] = useState(0); // Current displayed itinerary
     const [route, setRoute] = useState([]);
-    const [travelTime, setTravelTime] = useState(null); // In seconds
-    const [distance, setDistance] = useState(null); // In meters
     const [walkSpeed, setWalkSpeed] = useState(4.8); // Default walk speed in km/h
     const [bikeSpeed, setBikeSpeed] = useState(15); // Default bike speed in km/h
     const [speedUnit, setSpeedUnit] = useState("km/h"); // Default unit
@@ -79,23 +117,29 @@ const GrenobleMap = () => {
             const fetchItinerary = async () => {
                 try {
                     const speedInMps =
-                        transportMode === "WALK"
+                        transportMode === "WALK" || transportMode === ""
                             ? (speedUnit === "km/h" ? walkSpeed / 3.6 : (1000 / walkSpeed) / 60)
                             : bikeSpeed / 3.6; // Convert km/h to m/s for bike
 
                     const response = await fetch(
-                        `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=2025-03-13&time=08:00:00&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}`
+                        `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=2025-03-13&time=08:00:00&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}&numItineraries=3`
                     );
                     const data = await response.json();
+                    console.log(data);
                     if (data.plan && data.plan.itineraries.length > 0) {
-                        const itinerary = data.plan.itineraries[0]; // Take the first itinerary
+                        // Store all itineraries
+                        setItineraries(data.plan.itineraries.slice(0, 3)); // Get up to 3 itineraries
+                        setCurrentItineraryIndex(0); // Reset to first itinerary
+
+                        // Set the route for the first itinerary
+                        const itinerary = data.plan.itineraries[0];
                         const legGeometry = itinerary.legs.map((leg) => leg.legGeometry.points);
                         const decodedRoute = legGeometry.map((points) => polyline.decode(points));
                         setRoute(decodedRoute.flat());
-
-                        // Extract time and distance
-                        setTravelTime(itinerary.duration);
-                        setDistance(itinerary.legs.reduce((sum, leg) => sum + leg.distance, 0));
+                    } else {
+                        // Clear itineraries and route if none found
+                        setItineraries([]);
+                        setRoute([]);
                     }
                 } catch (error) {
                     console.error("Error fetching itinerary:", error);
@@ -105,12 +149,22 @@ const GrenobleMap = () => {
         }
     }, [start, end, walkSpeed, bikeSpeed, speedUnit, transportMode]);
 
+    // Update route when current itinerary changes
+    useEffect(() => {
+        if (itineraries.length > 0 && currentItineraryIndex < itineraries.length) {
+            const itinerary = itineraries[currentItineraryIndex];
+            const legGeometry = itinerary.legs.map((leg) => leg.legGeometry.points);
+            const decodedRoute = legGeometry.map((points) => polyline.decode(points));
+            setRoute(decodedRoute.flat());
+        }
+    }, [currentItineraryIndex, itineraries]);
+
     const resetMarkers = () => {
         setStart(null);
         setEnd(null);
         setRoute([]);
-        setTravelTime(null);
-        setDistance(null);
+        setItineraries([]);
+        setCurrentItineraryIndex(0);
     };
 
     const handleSpeedChange = (e) => {
@@ -139,6 +193,22 @@ const GrenobleMap = () => {
         setTransportMode(value);
     };
 
+    const handlePreviousItinerary = () => {
+        if (currentItineraryIndex > 0) {
+            setCurrentItineraryIndex(currentItineraryIndex - 1);
+        }
+    };
+
+    const handleNextItinerary = () => {
+        if (currentItineraryIndex < itineraries.length - 1) {
+            setCurrentItineraryIndex(currentItineraryIndex + 1);
+        }
+    };
+
+    const selectItinerary = (index) => {
+        setCurrentItineraryIndex(index);
+    };
+
     const formatTime = (seconds) => {
         if (!seconds) return "Not set";
         const minutes = Math.floor(seconds / 60);
@@ -152,64 +222,119 @@ const GrenobleMap = () => {
         return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters.toFixed(0)} m`;
     };
 
+    const currentItinerary = itineraries[currentItineraryIndex];
+
     return (
         <div className="relative h-[100vh] w-[100vw]">
             <MapContainer center={position} zoom={13} className="h-full w-full">
                 <TileLayer
-                    // attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 <LocationMarkers setStart={setStart} setEnd={setEnd} start={start} end={end} />
                 {route.length > 0 && <Polyline positions={route} color="blue" />}
             </MapContainer>
-            <div className="absolute bottom-5 left-5 z-[1000] bg-gray-50 rounded-lg shadow p-4">
-                <div className="flex items-center">
+
+            {/* Control panel */}
+            <div className="absolute bottom-5 left-5 z-[1000] bg-white rounded-lg shadow p-4 max-w-md">
+                <div className="flex items-center mb-4">
                     <ToggleGroup
                         type="single"
                         value={transportMode}
                         onValueChange={handleTransportModeChange}
-                        size={"xl"}
                     >
-                        <ToggleGroupItem value="WALK" aria-label="Toggle walk">
-                            <Footprints className="h-16 w-16" /> {/* Walk icon */}
+                        <ToggleGroupItem value="WALK" aria-label="Toggle walk" className="cursor-pointer">
+                            <Footprints className="h-5 w-5" />
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="BICYCLE" aria-label="Toggle bike"   >
-                            <Bike  className="h-16 w-16"/> {/* Bike  icon */}
+                        <ToggleGroupItem value="BICYCLE" aria-label="Toggle bike" className="cursor-pointer">
+                            <Bike className="h-5 w-5" />
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="TRAM" aria-label="Toggle public transportation" className="cursor-pointer">
+                            <Train className="h-5 w-5" />
                         </ToggleGroupItem>
                     </ToggleGroup>
                 </div>
-                <p>Start: {start ? `${start[0].toFixed(4)}, ${start[1].toFixed(4)}` : "Not set"}</p>
-                <p>End: {end ? `${end[0].toFixed(4)}, ${end[1].toFixed(4)}` : "Not set"}</p>
-                <p>Travel Time: {formatTime(travelTime)}</p>
-                <p>Distance: {formatDistance(distance)}</p>
-                <div className="flex items-center mt-4">
-                    <Input
-                        type="number"
-                        step="0.1"
-                        min={transportMode === "WALK" ? (speedUnit === "km/h" ? "0.1" : "4") : "0.1"}
-                        max={transportMode === "WALK" ? (speedUnit === "km/h" ? "36" : "20") : "36"}
-                        value={transportMode === "WALK" ? walkSpeed.toFixed(1) : bikeSpeed.toFixed(1)}
-                        onChange={handleSpeedChange}
-                        className="mr-4 w-24"
-                    />
-                    {transportMode === "WALK" ? (
-                        <Select value={speedUnit} onValueChange={handleSpeedUnitChange}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select unit" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="km/h">km/h</SelectItem>
-                                <SelectItem value="min/km">min/km</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    ):
-                        <p className="text-sm px-6">km/h</p>
-                    }
+
+                <div className="mb-4">
+                    <p>Start: {start ? `${start[0].toFixed(4)}, ${start[1].toFixed(4)}` : "Not set"}</p>
+                    <p>End: {end ? `${end[0].toFixed(4)}, ${end[1].toFixed(4)}` : "Not set"}</p>
+
+                    <div className="flex items-center mt-2">
+                        <Input
+                            type="number"
+                            step="0.1"
+                            min={transportMode === "WALK" ? (speedUnit === "km/h" ? "0.1" : "4") : "0.1"}
+                            max={transportMode === "WALK" ? (speedUnit === "km/h" ? "36" : "20") : "36"}
+                            value={transportMode === "WALK" ? walkSpeed.toFixed(1) : bikeSpeed.toFixed(1)}
+                            onChange={handleSpeedChange}
+                            className="mr-2 w-24"
+                        />
+                        {transportMode === "WALK" ? (
+                            <Select value={speedUnit} onValueChange={handleSpeedUnitChange}>
+                                <SelectTrigger className="w-24">
+                                    <SelectValue placeholder="Select unit" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="km/h">km/h</SelectItem>
+                                    <SelectItem value="min/km">min/km</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <p className="text-sm">km/h</p>
+                        )}
+
+                        <Button onClick={resetMarkers} className="ml-auto" disabled={!start && !end}>
+                            Reset
+                        </Button>
+                    </div>
                 </div>
 
-                <Button onClick={resetMarkers} className="mt-4" disabled={!start && !end}>
-                    Reset Markers
-                </Button>
+                {/* Itineraries section */}
+                {itineraries.length > 0 && (
+                    <div className="mt-4">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="font-medium">Available Routes</h3>
+                            <div className="flex space-x-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={handlePreviousItinerary}
+                                    disabled={currentItineraryIndex === 0}
+                                >
+                                    <ArrowLeft className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={handleNextItinerary}
+                                    disabled={currentItineraryIndex === itineraries.length - 1}
+                                >
+                                    <ArrowRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2  overflow-y-auto">
+                            {itineraries.map((itinerary, index) => (
+                                <div key={index} onClick={() => selectItinerary(index)} className="cursor-pointer">
+                                    <ItineraryCard
+                                        itinerary={itinerary}
+                                        index={index}
+                                        isActive={index === currentItineraryIndex}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        {currentItinerary && (
+                            <div className="mt-4 pt-2 border-t">
+                                <p className="font-medium">Current Route Details:</p>
+                                <p>Travel Time: {formatTime(currentItinerary.duration)}</p>
+                                <p>Distance: {formatDistance(currentItinerary.legs.reduce((sum, leg) => sum + leg.distance, 0))}</p>
+                                <p>Transport: {currentItinerary.legs.map(leg => leg.mode).join(", ")}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
