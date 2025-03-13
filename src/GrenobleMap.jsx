@@ -4,8 +4,10 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import polyline from "@mapbox/polyline"; // For decoding OTP's polyline
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem} from "@/components/ui/select.jsx"
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"; // Import ToggleGroup
+import { Bike, Footprints } from "lucide-react"; // Import icons for bike and walk
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -66,20 +68,23 @@ const GrenobleMap = () => {
     const [travelTime, setTravelTime] = useState(null); // In seconds
     const [distance, setDistance] = useState(null); // In meters
     const [walkSpeed, setWalkSpeed] = useState(4.8); // Default walk speed in km/h
+    const [bikeSpeed, setBikeSpeed] = useState(15); // Default bike speed in km/h
     const [speedUnit, setSpeedUnit] = useState("km/h"); // Default unit
     const [transportMode, setTransportMode] = useState("WALK"); // Default transport mode
     const position = [45.1885, 5.7245]; // Grenoble center
 
-    // Fetch itinerary when start, end, walkSpeed, or transportMode changes
+    // Fetch itinerary when start, end, walkSpeed, bikeSpeed, or transportMode changes
     useEffect(() => {
         if (start && end) {
             const fetchItinerary = async () => {
                 try {
-                    const walkSpeedInMps =
-                        speedUnit === "km/h" ? walkSpeed / 3.6 : (1000 / walkSpeed) / 60; // Convert min/km to m/s
+                    const speedInMps =
+                        transportMode === "WALK"
+                            ? (speedUnit === "km/h" ? walkSpeed / 3.6 : (1000 / walkSpeed) / 60)
+                            : bikeSpeed / 3.6; // Convert km/h to m/s for bike
 
                     const response = await fetch(
-                        `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=2025-03-13&time=08:00:00&walkSpeed=${walkSpeedInMps}`
+                        `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=2025-03-13&time=08:00:00&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}`
                     );
                     const data = await response.json();
                     if (data.plan && data.plan.itineraries.length > 0) {
@@ -98,7 +103,7 @@ const GrenobleMap = () => {
             };
             fetchItinerary();
         }
-    }, [start, end, walkSpeed, speedUnit, transportMode]);
+    }, [start, end, walkSpeed, bikeSpeed, speedUnit, transportMode]);
 
     const resetMarkers = () => {
         setStart(null);
@@ -108,12 +113,16 @@ const GrenobleMap = () => {
         setDistance(null);
     };
 
-    const handleWalkSpeedChange = (e) => {
+    const handleSpeedChange = (e) => {
         const value = parseFloat(e.target.value);
-        if (speedUnit === "km/h" && value > 0 && value <= 36) {
-            setWalkSpeed(value);
-        } else if (speedUnit === "min/km" && value > 4 && value <= 20) {
-            setWalkSpeed(value);
+        if (transportMode === "WALK") {
+            if (speedUnit === "km/h" && value > 0 && value <= 36) {
+                setWalkSpeed(value);
+            } else if (speedUnit === "min/km" && value > 4 && value <= 20) {
+                setWalkSpeed(value);
+            }
+        } else if (transportMode === "BICYCLE" && value > 0 && value <= 36) {
+            setBikeSpeed(value);
         }
     };
 
@@ -154,6 +163,21 @@ const GrenobleMap = () => {
                 {route.length > 0 && <Polyline positions={route} color="blue" />}
             </MapContainer>
             <div className="absolute bottom-5 left-5 z-[1000] bg-gray-50 rounded-lg shadow p-4">
+                <div className="flex items-center">
+                    <ToggleGroup
+                        type="single"
+                        value={transportMode}
+                        onValueChange={handleTransportModeChange}
+                        size={"xl"}
+                    >
+                        <ToggleGroupItem value="WALK" aria-label="Toggle walk">
+                            <Footprints className="h-16 w-16" /> {/* Walk icon */}
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="BICYCLE" aria-label="Toggle bike"   >
+                            <Bike  className="h-16 w-16"/> {/* Bike  icon */}
+                        </ToggleGroupItem>
+                    </ToggleGroup>
+                </div>
                 <p>Start: {start ? `${start[0].toFixed(4)}, ${start[1].toFixed(4)}` : "Not set"}</p>
                 <p>End: {end ? `${end[0].toFixed(4)}, ${end[1].toFixed(4)}` : "Not set"}</p>
                 <p>Travel Time: {formatTime(travelTime)}</p>
@@ -162,33 +186,27 @@ const GrenobleMap = () => {
                     <Input
                         type="number"
                         step="0.1"
-                        min={speedUnit === "km/h" ? "0.1" : "4"}
-                        max={speedUnit === "km/h" ? "36" : "20"}
-                        value={walkSpeed.toFixed(1)}
-                        onChange={handleWalkSpeedChange}
+                        min={transportMode === "WALK" ? (speedUnit === "km/h" ? "0.1" : "4") : "0.1"}
+                        max={transportMode === "WALK" ? (speedUnit === "km/h" ? "36" : "20") : "36"}
+                        value={transportMode === "WALK" ? walkSpeed.toFixed(1) : bikeSpeed.toFixed(1)}
+                        onChange={handleSpeedChange}
                         className="mr-4 w-24"
                     />
-                    <Select value={speedUnit} onValueChange={handleSpeedUnitChange}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="km/h">km/h</SelectItem>
-                            <SelectItem value="min/km">min/km</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    {transportMode === "WALK" ? (
+                        <Select value={speedUnit} onValueChange={handleSpeedUnitChange}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select unit" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="km/h">km/h</SelectItem>
+                                <SelectItem value="min/km">min/km</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    ):
+                        <p className="text-sm px-6">km/h</p>
+                    }
                 </div>
-                <div className="flex items-center mt-4">
-                    <Select value={transportMode} onValueChange={handleTransportModeChange}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select mode" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="WALK">Marche</SelectItem>
-                            <SelectItem value="BICYCLE">Vélo</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+
                 <Button onClick={resetMarkers} className="mt-4" disabled={!start && !end}>
                     Reset Markers
                 </Button>
