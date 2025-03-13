@@ -223,7 +223,7 @@ const GrenobleMap = () => {
                 })
                 .catch(error => console.error('Erreur lors du géocodage:', error));
         }
-    }, [debouncedAddressInit, start, setStart]);
+    }, [debouncedAddressInit, setStart]);
 
     useEffect(() => {
         if (debouncedAddressEnd && viewBox) {
@@ -241,7 +241,7 @@ const GrenobleMap = () => {
                 })
                 .catch(error => console.error('Erreur lors du géocodage:', error));
         }
-    }, [debouncedAddressEnd, end, setEnd]);
+    }, [debouncedAddressEnd, setEnd]);
 
     return (
         <div className="relative h-[100vh] w-[100vw]">
