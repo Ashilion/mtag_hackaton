@@ -13,7 +13,7 @@ import { Calendar as CalendarIcon, Clock } from "lucide-react";
 
 const DateTimeSelector = ({ onDateTimeChange }) => {
     const [date, setDate] = useState(new Date());
-    const [time, setTime] = useState("08:00");
+    const [time, setTime] = useState(format(new Date(), 'HH:mm'));
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
     const [isTimeOpen, setIsTimeOpen] = useState(false);
 
