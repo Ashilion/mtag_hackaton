@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import polyline from "@mapbox/polyline"; // For decoding OTP's polyline
@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem} from "@/components/ui/select.jsx"
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Bike, Footprints, Train, ArrowLeft, ArrowRight, Bus, Car } from "lucide-react";
+import { Bike, Footprints, Train, ArrowLeft, ArrowRight, Bus, Car, Navigation, Loader2, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -30,6 +31,14 @@ const startIcon = new L.Icon({
 
 const endIcon = new L.Icon({
     iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
+});
+
+const currentLocationIcon = new L.Icon({
+    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -71,6 +80,19 @@ const getTransportIcon = (mode) => {
             return null;
     }
 };
+
+// Centers the map on the user's location
+function SetViewOnUser({ center }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (center) {
+            map.setView(center, 15);
+        }
+    }, [center, map]);
+
+    return null;
+}
 
 function LocationMarkers({ setStart, setEnd, start, end }) {
     useMapEvents({
@@ -188,16 +210,97 @@ const getTransportDisplayName = (leg) => {
     return leg.mode;
 };
 
+// Simple notification component instead of toast
+const Notification = ({ message, type, onClose }) => {
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            onClose();
+        }, 4000); // Auto close after 4 seconds
+
+        return () => clearTimeout(timer);
+    }, [onClose]);
+
+    return (
+        <Alert className={`mb-2 ${type === 'error' ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}>
+            <AlertCircle className={`h-4 w-4 ${type === 'error' ? 'text-red-500' : 'text-green-500'}`} />
+            <AlertTitle className={type === 'error' ? 'text-red-700' : 'text-green-700'}>
+                {type === 'error' ? 'Error' : 'Success'}
+            </AlertTitle>
+            <AlertDescription>
+                {message}
+            </AlertDescription>
+        </Alert>
+    );
+};
+
 const GrenobleMap = () => {
     const [start, setStart] = useState(null);
     const [end, setEnd] = useState(null);
+    const [currentLocation, setCurrentLocation] = useState(null);
+    const [loadingLocation, setLoadingLocation] = useState(false);
     const [itineraries, setItineraries] = useState([]); // Array of all available itineraries
     const [currentItineraryIndex, setCurrentItineraryIndex] = useState(0); // Current displayed itinerary
     const [walkSpeed, setWalkSpeed] = useState(4.8); // Default walk speed in km/h
     const [bikeSpeed, setBikeSpeed] = useState(15); // Default bike speed in km/h
     const [speedUnit, setSpeedUnit] = useState("km/h"); // Default unit
-    const [transportMode, setTransportMode] = useState("WALK"); // Default transport mode
-    const position = [45.1885, 5.7245]; // Grenoble center
+    const [transportMode, setTransportMode] = useState("TRANSIT"); // Default transport mode
+    const position = [45.1885, 5.7245]; // Grenoble center  
+    const [mapCenter, setMapCenter] = useState(position);
+    const [notification, setNotification] = useState(null);
+
+    // Show notification
+    const showNotification = (message, type = 'success') => {
+        setNotification({ message, type });
+    };
+
+    // Clear notification
+    const clearNotification = () => {
+        setNotification(null);
+    };
+
+    const getGeolocation = () => {
+        setLoadingLocation(true);
+
+        if (!navigator.geolocation) {
+            showNotification("Geolocation is not supported by your browser", "error");
+            setLoadingLocation(false);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                setCurrentLocation([latitude, longitude]);
+                setStart([latitude, longitude]);
+                setMapCenter([latitude, longitude]);
+                setLoadingLocation(false);
+
+                showNotification("Your location has been set as the starting point");
+            },
+            (error) => {
+                let errorMessage = "Unknown error occurred";
+                switch (error.code) {
+                    case 1:
+                        errorMessage = "Permission denied";
+                        break;
+                    case 2:
+                        errorMessage = "Position unavailable";
+                        break;
+                    case 3:
+                        errorMessage = "Timeout";
+                        break;
+                }
+
+                showNotification(errorMessage, "error");
+                setLoadingLocation(false);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    };
 
     // Fetch itinerary when start, end, walkSpeed, bikeSpeed, or transportMode changes
     useEffect(() => {
@@ -222,9 +325,11 @@ const GrenobleMap = () => {
                     } else {
                         // Clear itineraries if none found
                         setItineraries([]);
+                        showNotification("No routes found for the selected points and transport mode.", "error");
                     }
                 } catch (error) {
                     console.error("Error fetching itinerary:", error);
+                    showNotification("Failed to fetch route information. Please try again.", "error");
                 }
             };
             fetchItinerary();
@@ -234,8 +339,10 @@ const GrenobleMap = () => {
     const resetMarkers = () => {
         setStart(null);
         setEnd(null);
+        setCurrentLocation(null);
         setItineraries([]);
         setCurrentItineraryIndex(0);
+        setMapCenter(position);
     };
 
     const handleSpeedChange = (e) => {
@@ -302,6 +409,7 @@ const GrenobleMap = () => {
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 <LocationMarkers setStart={setStart} setEnd={setEnd} start={start} end={end} />
+                <SetViewOnUser center={mapCenter} />
 
                 {/* Render colored route segments instead of a single polyline */}
                 {currentItinerary && (
@@ -309,6 +417,17 @@ const GrenobleMap = () => {
                 )}
 
             </MapContainer>
+
+            {/* Notification area */}
+            {notification && (
+                <div className="absolute bottom-5 right-2 transform -translate-x-1/2 z-[2000] w-80">
+                    <Notification
+                        message={notification.message}
+                        type={notification.type}
+                        onClose={clearNotification}
+                    />
+                </div>
+            )}
 
             {/* Control panel */}
             <div className="absolute bottom-5 left-5 z-[1000] bg-white rounded-lg shadow p-4 max-w-md">
@@ -329,8 +448,19 @@ const GrenobleMap = () => {
                         </ToggleGroupItem>
                     </ToggleGroup>
                 </div>
-
-                <div className="mb-4">
+                <Button
+                    onClick={getGeolocation}
+                    className="flex items-center"
+                    disabled={loadingLocation}
+                >
+                    {loadingLocation ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                        <Navigation className="h-4 w-4 mr-2" />
+                    )}
+                    {loadingLocation ? "Locating..." : "Use My Location"}
+                </Button>
+                <div className="mb-4 mt-2">
                     <p>Start: {start ? `${start[0].toFixed(4)}, ${start[1].toFixed(4)}` : "Not set"}</p>
                     <p>End: {end ? `${end[0].toFixed(4)}, ${end[1].toFixed(4)}` : "Not set"}</p>
 
