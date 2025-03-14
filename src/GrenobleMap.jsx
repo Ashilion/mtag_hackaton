@@ -740,10 +740,6 @@ const GrenobleMap = () => {
                         </Button>
                     </div>
                 </div>
-
-                <Button onClick={resetMarkers} className="mt-4" disabled={!start && !end}>
-                    Reset Markers
-                </Button>
                 {/* Itineraries section */}
                 {itineraries.length > 0 && (
                     <div className="mt-4">
