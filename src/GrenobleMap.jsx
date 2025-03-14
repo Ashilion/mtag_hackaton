@@ -77,7 +77,7 @@ const ColoredRouteSegments = ({ legs }) => {
         <>
             {legs.map((leg, index) => {
                 const decodedPoints = polyline.decode(leg.legGeometry.points);
-                const color = getRouteColor(leg.mode);
+                const color = getRouteColor(leg.mode, leg.routeColor);
                 const key = `leg-${index}-${leg.mode}`;
 
                 return (
@@ -754,8 +754,8 @@ const GrenobleMap = () => {
                                             variant="outline"
                                             className="ml-1 flex items-center"
                                             style={{
-                                                backgroundColor: getRouteColor(leg.mode) + '20',
-                                                borderColor: getRouteColor(leg.mode)
+                                                backgroundColor: getRouteColor(leg.mode,leg.routeColor) + '20',
+                                                borderColor: getRouteColor(leg.mode,leg.routeColor)
                                             }}
                                         >
                                             {getTransportIcon(leg.mode)}

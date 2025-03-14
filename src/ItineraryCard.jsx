@@ -116,7 +116,7 @@ export const ItineraryCard = ({itinerary, index, isActive, carbonFootprint, carC
                                 <div key={idx} className="space-y-2">
                                     <div className="flex items-center">
                                         <div className="h-8 w-8 rounded-full flex items-center justify-center mr-2"
-                                             style={{backgroundColor: getRouteColor(leg.mode) + '40'}}>
+                                             style={{backgroundColor: getRouteColor(leg.mode,leg.routeColor) + '20'}}>
                                             {getTransportIcon(leg.mode)}
                                         </div>
                                         <div className="flex-1">
