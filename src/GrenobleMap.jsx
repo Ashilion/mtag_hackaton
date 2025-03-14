@@ -208,7 +208,8 @@ const GrenobleMap = () => {
     const [loadingTramData, setLoadingTramData] = useState(false);
     const [tramLineGeometries, setTramLineGeometries] = useState({}); // Store tram line geometries
     const [showTramLines, setShowTramLines] = useState(true); // Toggle to show/hide tram lines
-
+    const [carbonFootprint, setCarbonFootprint] = useState(null);
+    const [carCarbonFootprint, setCarCarbonFootprint] = useState(null);
     const [departureDateTime, setDepartureDateTime] = useState(new Date());
     // Show notification
     const showNotification = (message, type = 'success') => {
@@ -455,6 +456,35 @@ const GrenobleMap = () => {
 
     const currentItinerary = itineraries[currentItineraryIndex];
 
+    useEffect(() => {
+        if (currentItinerary) {
+            const calculateCarbonFootprint = async () => {
+                try {
+                    const totalDistanceKm = currentItinerary.legs.reduce((sum, leg) => sum + leg.distance, 0) / 1000;
+                    const transportId = transportMode === "TRAM" || transportMode === "TRANSIT"? 10 : (transportMode === "BICYCLE" ? 7 : 30);
+                    console.log(transportId)
+                    // Fetch carbon footprint for the selected transport mode
+                    const response = await fetch(`https://impactco2.fr/api/v1/transport?km=${totalDistanceKm}&displayAll=0&transports=${transportId}&ignoreRadiativeForcing=0&occupencyRate=1&includeConstruction=0&language=fr`);
+                    const data = await response.json();
+                    const carbonFootprintValue = data["data"][0]["value"];
+                    console.log("Selected Transport Carbon Footprint:", carbonFootprintValue);
+                    setCarbonFootprint(carbonFootprintValue);
+
+                    // Fetch carbon footprint for car
+                    const carResponse = await fetch(`https://impactco2.fr/api/v1/transport?km=${totalDistanceKm}&displayAll=0&transports=4&ignoreRadiativeForcing=0&occupencyRate=1&includeConstruction=0&language=fr`);
+                    const carData = await carResponse.json();
+                    const carCarbonFootprintValue = carData["data"][0]["value"];
+                    console.log("Car Carbon Footprint:", carCarbonFootprintValue);
+                    setCarCarbonFootprint(carCarbonFootprintValue);
+                } catch (error) {
+                    console.error("Error fetching carbon footprint data:", error);
+                }
+            };
+
+            calculateCarbonFootprint();
+        }
+    }, [currentItineraryIndex, transportMode, currentItinerary]);
+
     function useDebounce(value, delay) {
         const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -681,6 +711,8 @@ const GrenobleMap = () => {
                                         itinerary={itinerary}
                                         index={index}
                                         isActive={index === currentItineraryIndex}
+                                        carCarbonFootprint={carCarbonFootprint}
+                                        carbonFootprint={carbonFootprint}
                                     />
                                 </div>
                             ))}

@@ -16,7 +16,7 @@ import {Separator} from "@/components/ui/separator.jsx";
 import {getRouteColor} from "@/utils/GetRouteColor.jsx";
 import {getTransportIcon} from "@/utils/GetTransportIcon.jsx";
 
-export const ItineraryCard = ({itinerary, index, isActive}) => {
+export const ItineraryCard = ({itinerary, index, isActive, carbonFootprint, carCarbonFootprint}) => {
     const [showDetails, setShowDetails] = useState(false);
 
     const formatTime = (seconds) => {
@@ -86,8 +86,18 @@ export const ItineraryCard = ({itinerary, index, isActive}) => {
                             Total journey: {formatTime(itinerary.duration)} - {formatDistance(totalDistance)}
                         </DialogDescription>
                     </DialogHeader>
-
                     <div className="space-y-4 py-2">
+                        <div className="flex justify-between text-sm font-medium">
+                            <div>
+                                <p className="font-bold">Carbon Footprint</p>
+                                <p className="text-teal-500">{carbonFootprint}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-bold">If it was by car</p>
+                                <p className="text-orange-300">{carCarbonFootprint}</p>
+                            </div>
+                        </div>
+                        <Separator/>
                         <div className="flex justify-between text-sm font-medium">
                             <div>
                                 <p className="font-bold">Departure</p>
