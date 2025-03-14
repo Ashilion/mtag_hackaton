@@ -1,30 +1,25 @@
-import React, { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, ZoomControl, useMap } from "react-leaflet";
+import React, {useEffect, useState} from "react";
+import {MapContainer, Marker, Polyline, Popup, TileLayer, useMapEvents, ZoomControl} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "./leaflet_zoom.css"
 import L from "leaflet";
 import polyline from "@mapbox/polyline"; // For decoding OTP's polyline
-import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem} from "@/components/ui/select.jsx"
-import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Bike, Footprints, Train, ArrowLeft, ArrowRight, Bus, Car, Navigation, Loader2, AlertCircle, Info } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import DateTimeSelector from "./DateTimeSelector"; // Create this as a separate file
+import {Input} from "@/components/ui/input";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.jsx"
+import {Button} from "@/components/ui/button";
+import {ToggleGroup, ToggleGroupItem} from "@/components/ui/toggle-group";
+import {ArrowLeft, ArrowRight, Bike, Footprints, Loader2, Navigation, Train} from "lucide-react";
+import {Badge} from "@/components/ui/badge";
+import DateTimeSelector from "./DateTimeSelector";
+import {Notification} from "@/Notification.jsx";
+import {ItineraryCard} from "@/ItineraryCard.jsx";
+import {SearchAdress} from "@/SearchAdress.jsx";
+import {startIcon} from "@/assets/StartIcon.jsx";
+import {endIcon} from "@/assets/EndIcon.jsx";
+import {getRouteColor} from "@/utils/GetRouteColor.jsx";
+import {getTransportIcon} from "@/utils/GetTransportIcon.jsx";
+import {SetViewOnUser} from "@/utils/SetViewOnUser.jsx";
+import {FetchOnMove} from "@/utils/FetchOnMove.jsx"; // Create this as a separate file
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -33,106 +28,6 @@ L.Icon.Default.mergeOptions({
     iconUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png",
     shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
 });
-
-// Custom icons
-const startIcon = new L.Icon({
-    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
-});
-
-const endIcon = new L.Icon({
-    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
-});
-
-const currentLocationIcon = new L.Icon({
-    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png",
-});
-
-// Function to get color based on transport mode
-const getRouteColor = (mode) => {
-    switch (mode) {
-        case "TRAM":
-            return "red"; // Tram routes in red
-        case "BUS":
-            return "orange"; // Bus routes in orange
-        case "BICYCLE":
-            return "green"; // Bike routes in green
-        case "WALK":
-            return "blue"; // Walking routes in blue
-        case "CAR":
-            return "gray"; // Car routes in gray
-        default:
-            return "purple"; // Other transport modes in purple
-    }
-};
-
-// Function to get icon component based on transport mode
-const getTransportIcon = (mode) => {
-    switch (mode) {
-        case "TRAM":
-            return <Train className="h-4 w-4 mr-1" />;
-        case "BUS":
-            return <Bus className="h-4 w-4 mr-1" />;
-        case "BICYCLE":
-            return <Bike className="h-4 w-4 mr-1" />;
-        case "WALK":
-            return <Footprints className="h-4 w-4 mr-1" />;
-        case "CAR":
-            return <Car className="h-4 w-4 mr-1" />;
-        default:
-            return null;
-    }
-};
-
-// Centers the map on the user's location
-function SetViewOnUser({ center }) {
-    const map = useMap();
-
-    useEffect(() => {
-        if (center) {
-            map.setView(center, 15);
-        }
-    }, [center, map]);
-
-    return null;
-}
-
-const FetchOnMove = ({ setData }) => {
-    const map = useMap();
-
-    useEffect(() => {
-        const fetchDataInViewbox = () => {
-            const bounds = map.getBounds();
-            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-            console.log(bbox);
-            setData(bbox);
-        };
-
-        map.whenReady(() => {
-            fetchDataInViewbox();
-        });
-
-        map.on("moveend", fetchDataInViewbox);
-        map.on("zoomend", fetchDataInViewbox);
-
-        return () => {
-            map.off("moveend", fetchDataInViewbox);
-            map.off("zoomend", fetchDataInViewbox);
-        };
-    }, [map, setData]);
-    return null;
-};
 
 function LocationMarkers({ setStart, setEnd, start, end }) {
     useMapEvents({
@@ -160,162 +55,6 @@ function LocationMarkers({ setStart, setEnd, start, end }) {
         </>
     );
 }
-
-// Component to display itinerary details
-const ItineraryCard = ({ itinerary, index, isActive }) => {
-    const [showDetails, setShowDetails] = useState(false);
-
-    const formatTime = (seconds) => {
-        if (!seconds) return "Not set";
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const remainingMinutes = minutes % 60;
-        return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
-    };
-
-    const formatDistance = (meters) => {
-        if (!meters) return "Not set";
-        return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters.toFixed(0)} m`;
-    };
-
-    const formatDateTime = (timestamp) => {
-        return new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    };
-
-    // Calculate total distance from all legs
-    const totalDistance = itinerary.legs.reduce((sum, leg) => sum + leg.distance, 0);
-
-    // Find the primary mode for this itinerary (non-walking if possible)
-    const primaryMode = itinerary.legs.find(leg => leg.mode !== "WALK")?.mode || itinerary.legs[0].mode;
-
-    return (
-        <>
-            <Card className={`mb-2 ${isActive ? 'border-2 border-primary' : ''}`}>
-                <CardContent className="">
-                    <div className="flex justify-between items-center">
-                        <Badge variant={isActive ? "default" : "outline"} className="mb-2">Route {index + 1}</Badge>
-                        <div className="flex items-center">
-                            {getTransportIcon(primaryMode)}
-                            <Badge variant="secondary">{primaryMode}</Badge>
-                        </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center flex-col">
-                            <p className="text-lg font-semibold">{formatTime(itinerary.duration)}</p>
-                            <p className="text-sm text-gray-600">{formatDistance(totalDistance)}</p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-2 cursor-pointer"
-                            onClick={(e) => {
-                                e.stopPropagation(); // Prevent triggering parent click event
-                                setShowDetails(true);
-                            }}
-                        >
-                            <Info />
-                        </Button>
-                    </div>
-                    <div className="flex mt-2 text-xs text-gray-500 gap-2">
-                        <p>Depart: {formatDateTime(itinerary.startTime)} </p>
-                        <p className="ml-auto">Arrive: {formatDateTime(itinerary.endTime)}</p>
-                    </div>
-
-                </CardContent>
-            </Card>
-
-            <Dialog open={showDetails} onOpenChange={setShowDetails}>
-                <DialogContent className="max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Route {index + 1} Details</DialogTitle>
-                        <DialogDescription>
-                            Total journey: {formatTime(itinerary.duration)} - {formatDistance(totalDistance)}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-2">
-                        <div className="flex justify-between text-sm font-medium">
-                            <div>
-                                <p className="font-bold">Departure</p>
-                                <p>{formatDateTime(itinerary.startTime)}</p>
-                            </div>
-                            <div className="text-right">
-                                <p className="font-bold">Arrival</p>
-                                <p>{formatDateTime(itinerary.endTime)}</p>
-                            </div>
-                        </div>
-
-                        <Separator />
-
-                        <div className="space-y-4">
-                            {itinerary.legs.map((leg, idx) => (
-                                <div key={idx} className="space-y-2">
-                                    <div className="flex items-center">
-                                        <div className="h-8 w-8 rounded-full flex items-center justify-center mr-2"
-                                             style={{backgroundColor: getRouteColor(leg.mode) + '40'}}>
-                                            {getTransportIcon(leg.mode)}
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="font-semibold flex items-center">
-                                                {getTransportIcon(leg.mode)}
-                                                {leg.mode === "TRAM" || leg.mode === "BUS"
-                                                    ? `${leg.mode} ${leg.routeShortName || ''}`
-                                                    : leg.mode}
-                                            </p>
-                                            <p className="text-sm text-gray-500">
-                                                {formatTime(leg.duration)} - {formatDistance(leg.distance)}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="pl-10 space-y-1 text-sm">
-                                        <div className="flex">
-                                            <div className="w-16 text-gray-500">
-                                                {formatDateTime(leg.startTime)}
-                                            </div>
-                                            <div className="font-medium">
-                                                {leg.from ? leg.from.name : "Starting point"}
-                                            </div>
-                                        </div>
-
-                                        {leg.intermediateStops && leg.intermediateStops.length > 0 && (
-                                            <div className="pl-16 space-y-1">
-                                                {leg.intermediateStops.map((stop, stopIdx) => (
-                                                    <div key={stopIdx} className="text-xs text-gray-500">
-                                                        {stop.name}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        <div className="flex">
-                                            <div className="w-16 text-gray-500">
-                                                {formatDateTime(leg.endTime)}
-                                            </div>
-                                            <div className="font-medium">
-                                                {leg.to ? leg.to.name : "Destination"}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {idx < itinerary.legs.length - 1 && (
-                                        <div className="pl-4 py-1">
-                                            <div className="border-l-2 border-dashed border-gray-300 h-6 ml-4"></div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button onClick={() => setShowDetails(false)}>Close</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
-    );
-};
 
 // Component to render route segments with different colors
 const ColoredRouteSegments = ({ legs }) => {
@@ -362,29 +101,6 @@ const getTransportDisplayName = (leg) => {
         return leg.routeShortName ? `${leg.mode} ${leg.routeShortName}` : leg.mode;
     }
     return leg.mode;
-};
-
-// Simple notification component instead of toast
-const Notification = ({ message, type, onClose }) => {
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            onClose();
-        }, 4000); // Auto close after 4 seconds
-
-        return () => clearTimeout(timer);
-    }, [onClose]);
-
-    return (
-        <Alert className={`mb-2 ${type === 'error' ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}>
-            <AlertCircle className={`h-4 w-4 ${type === 'error' ? 'text-red-500' : 'text-green-500'}`} />
-            <AlertTitle className={type === 'error' ? 'text-red-700' : 'text-green-700'}>
-                {type === 'error' ? 'Error' : 'Success'}
-            </AlertTitle>
-            <AlertDescription>
-                {message}
-            </AlertDescription>
-        </Alert>
-    );
 };
 
 const GrenobleMap = () => {
@@ -490,7 +206,7 @@ const GrenobleMap = () => {
                     // Format date and time for API
                     const formattedDate = formatDateForApi(departureDateTime);
                     const formattedTime = formatTimeForApi(departureDateTime);
-                    const url = `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=${formattedDate}&time=${formattedTime}&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}&numItineraries=3`
+                    const url = `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=${formattedDate}&time=${formattedTime}&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}&numItineraries=5`
                     console.log(url);
                     const response = await fetch(
                         url
@@ -646,17 +362,17 @@ const GrenobleMap = () => {
     return (
         <div className="relative h-[100vh] w-[100vw]">
             <MapContainer zoomControl={false} center={position} zoom={13} className="h-full w-full">
-                <FetchOnMove setData={setViewBox} />
-                <ZoomControl position="bottomright" />
+                <FetchOnMove setData={setViewBox}/>
+                <ZoomControl position="bottomright"/>
                 <TileLayer
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
-                <LocationMarkers setStart={setStart} setEnd={setEnd} start={start} end={end} />
-                <SetViewOnUser center={mapCenter} />
+                <LocationMarkers setStart={setStart} setEnd={setEnd} start={start} end={end}/>
+                <SetViewOnUser center={mapCenter}/>
 
                 {/* Render colored route segments instead of a single polyline */}
                 {currentItinerary && (
-                    <ColoredRouteSegments legs={currentItinerary.legs} />
+                    <ColoredRouteSegments legs={currentItinerary.legs}/>
                 )}
 
             </MapContainer>
@@ -681,19 +397,20 @@ const GrenobleMap = () => {
                         onValueChange={handleTransportModeChange}
                     >
                         <ToggleGroupItem value="WALK" aria-label="Toggle walk" className="cursor-pointer">
-                            <Footprints className="h-5 w-5" />
+                            <Footprints className="h-5 w-5"/>
                         </ToggleGroupItem>
                         <ToggleGroupItem value="BICYCLE" aria-label="Toggle bike" className="cursor-pointer">
-                            <Bike className="h-5 w-5" />
+                            <Bike className="h-5 w-5"/>
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="TRANSIT" aria-label="Toggle public transportation" className="cursor-pointer">
-                            <Train className="h-5 w-5" />
+                        <ToggleGroupItem value="TRANSIT" aria-label="Toggle public transportation"
+                                         className="cursor-pointer">
+                            <Train className="h-5 w-5"/>
                         </ToggleGroupItem>
                     </ToggleGroup>
                 </div>
                 <div className="mb-4">
                     <h3 className="font-medium mb-2">Departure Time</h3>
-                    <DateTimeSelector onDateTimeChange={handleDateTimeChange} />
+                    <DateTimeSelector onDateTimeChange={handleDateTimeChange}/>
                 </div>
                 <Button
                     onClick={getGeolocation}
@@ -701,9 +418,9 @@ const GrenobleMap = () => {
                     disabled={loadingLocation}
                 >
                     {loadingLocation ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin"/>
                     ) : (
-                        <Navigation className="h-4 w-4 mr-2" />
+                        <Navigation className="h-4 w-4 mr-2"/>
                     )}
                     {loadingLocation ? "Locating..." : "Use My Location"}
                 </Button>
@@ -724,7 +441,7 @@ const GrenobleMap = () => {
                         {transportMode === "WALK" ? (
                             <Select value={speedUnit} onValueChange={handleSpeedUnitChange}>
                                 <SelectTrigger className="w-24">
-                                    <SelectValue placeholder="Select unit" />
+                                    <SelectValue placeholder="Select unit"/>
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="km/h">km/h</SelectItem>
@@ -752,7 +469,7 @@ const GrenobleMap = () => {
                                     onClick={handlePreviousItinerary}
                                     disabled={currentItineraryIndex === 0}
                                 >
-                                    <ArrowLeft className="h-4 w-4" />
+                                    <ArrowLeft className="h-4 w-4"/>
                                 </Button>
                                 <Button
                                     size="sm"
@@ -760,7 +477,7 @@ const GrenobleMap = () => {
                                     onClick={handleNextItinerary}
                                     disabled={currentItineraryIndex === itineraries.length - 1}
                                 >
-                                    <ArrowRight className="h-4 w-4" />
+                                    <ArrowRight className="h-4 w-4"/>
                                 </Button>
                             </div>
                         </div>
@@ -805,31 +522,8 @@ const GrenobleMap = () => {
                     </div>
                 )}
             </div>
-            <div className="absolute top-5 right-5 z-[1000] bg-gray-50 rounded-lg shadow p-4 w-[300px]">
-                <h1 className="text-center">Cliquez sur la carte pour placer les points ou entrez les adresses :</h1>
-                <div className="flex flex-col items-center mt-4">
-                    <label className="mb-2">Adresse initiale</label>
-                    <Input
-                        type="text"
-                        placeholder="Entrez l'adresse initiale"
-                        onChange={(e) => setAddressInit(e.target.value)}
-                        className="mb-4 w-full"
-                    />
-                    <label className="mb-2">Adresse finale</label>
-                    <Input
-                        type="text"
-                        placeholder="Entrez l'adresse finale"
-                        onChange={(e) => setAddressEnd(e.target.value)}
-                        className="w-full"
-                    />
-                </div>
-
-
-                <Button onClick={calculateIfMarkers} className="mt-4">
-                    Calculer
-                </Button>
-
-            </div>
+            <SearchAdress onChange={(e) => setAddressInit(e.target.value)}
+                          onChange1={(e) => setAddressEnd(e.target.value)} onClick={calculateIfMarkers}/>
         </div>
     );
 };
