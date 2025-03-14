@@ -60,7 +60,7 @@ const createTramStopIcon = (color) => {
     // Create a div element with a colored circle
     const tramIcon = L.divIcon({
         className: 'custom-tram-icon',
-        html: `<div style="background-color: #${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>`,
+        html: `<div style="background-color: white; width: 8px; height: 8px; border-radius: 50%; border: 2px solid black;"></div>`,
         iconSize: [16, 16],
         iconAnchor: [8, 8],
         popupAnchor: [0, -8]
@@ -588,7 +588,7 @@ const GrenobleMap = () => {
                 {showTramLines && <TramLines tramLines={tramLines} tramLineGeometries={tramLineGeometries} />}
 
                 {/* Render tram stops */}
-                {tramStops.features && tramStops.features.map((stop, index) => {
+                {showTramLines && tramStops.features && tramStops.features.map((stop, index) => {
                     const position = [stop.lat, stop.lon];
                     const properties = stop.properties;
                     const icon = createTramStopIcon(properties.lineColor || '007bff');
