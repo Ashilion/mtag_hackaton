@@ -56,6 +56,19 @@ function LocationMarkers({ setStart, setEnd, start, end }) {
     );
 }
 
+const createTramStopIcon = (color) => {
+    // Create a div element with a colored circle
+    const tramIcon = L.divIcon({
+        className: 'custom-tram-icon',
+        html: `<div style="background-color: #${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+        popupAnchor: [0, -8]
+    });
+
+    return tramIcon;
+};
+
 // Component to render route segments with different colors
 const ColoredRouteSegments = ({ legs }) => {
     if (!legs || legs.length === 0) return null;
@@ -95,6 +108,76 @@ const ColoredRouteSegments = ({ legs }) => {
     );
 };
 
+// New component to render tram lines
+const TramLines = ({ tramLines, tramLineGeometries }) => {
+    if (!tramLines || !tramLineGeometries || Object.keys(tramLineGeometries).length === 0) {
+        console.log("no tram line")
+        return null;
+    }
+
+    return (
+        <>
+            {tramLines.map((line) => {
+                const lineGeometry = tramLineGeometries[line.id];
+                if (!lineGeometry) return null;
+
+                // Check if we're dealing with GeoJSON format (MultiLineString) or polyline format
+                if (lineGeometry.type === "FeatureCollection") {
+                    // Handle GeoJSON format
+                    return lineGeometry.features.map((feature, featureIndex) => {
+                        if (feature.geometry.type === "MultiLineString") {
+                            return feature.geometry.coordinates.map((lineCoords, lineIndex) => {
+                                // Convert coordinates from [lng, lat] to [lat, lng] for Leaflet
+                                const positions = lineCoords.map(coord => [coord[1], coord[0]]);
+
+                                return (
+                                    <Polyline
+                                        key={`tram-line-${line.id}-feature-${featureIndex}-line-${lineIndex}`}
+                                        positions={positions}
+                                        color={`#${line.color || '007BFF'}`}
+                                        weight={4}
+                                        opacity={0.7}
+                                        dashArray="5, 10"
+                                    >
+                                        <Popup>
+                                            Tram Line {line.shortName}
+                                            <br />
+                                            {line.longName || ''}
+                                        </Popup>
+                                    </Polyline>
+                                );
+                            });
+                        }
+                        return null;
+                    });
+                } else {
+                    // Handle original polyline format
+                    return lineGeometry.map((geometry, index) => {
+                        const decodedPoints = polyline.decode(geometry);
+
+                        return (
+                            <Polyline
+                                key={`tram-line-${line.id}-${index}`}
+                                positions={decodedPoints}
+                                color={`#${line.color || '007BFF'}`}
+                                weight={4}
+                                opacity={0.7}
+                                dashArray="5, 10"
+                            >
+                                <Popup>
+                                    Tram Line {line.shortName}
+                                    <br />
+                                    {line.longName || ''}
+                                </Popup>
+                            </Polyline>
+                        );
+                    });
+                }
+            })}
+        </>
+    );
+};
+
 // Function to get display name for transport mode with tram/bus line
 const getTransportDisplayName = (leg) => {
     if (leg.mode === "TRAM" || leg.mode === "BUS") {
@@ -118,6 +201,13 @@ const GrenobleMap = () => {
     const [mapCenter, setMapCenter] = useState(position);
     const [notification, setNotification] = useState(null);
     const [viewBox, setViewBox] = useState("");
+    const [stopsData, setStopsData] = useState(null);
+    const [tramStopsData, setTramStopsData] = useState(null);
+    const [tramLines, setTramLines] = useState([]);
+    const [tramStops, setTramStops] = useState([]);
+    const [loadingTramData, setLoadingTramData] = useState(false);
+    const [tramLineGeometries, setTramLineGeometries] = useState({}); // Store tram line geometries
+    const [showTramLines, setShowTramLines] = useState(true); // Toggle to show/hide tram lines
 
     const [departureDateTime, setDepartureDateTime] = useState(new Date());
     // Show notification
@@ -230,6 +320,77 @@ const GrenobleMap = () => {
             fetchItinerary();
         }
     }, [start, end, walkSpeed, bikeSpeed, speedUnit, transportMode, departureDateTime]);
+
+    // Add this useEffect to fetch tram lines and stops
+    useEffect(() => {
+        const fetchTramData = async () => {
+            setLoadingTramData(true);
+            try {
+                // First, fetch tram lines
+                const linesResponse = await fetch('https://data.mobilites-m.fr/api/routers/default/index/routes?reseaux=TRAM');
+                const linesData = await linesResponse.json();
+                setTramLines(linesData);
+
+                // Then, fetch stops for each tram line
+                const allTramStops = [];
+                const lineGeometries = {};
+
+                for (const line of linesData) {
+                    try {
+                        // Fetch stops for this line
+                        const stopsResponse = await fetch(`https://data.mobilites-m.fr/api/routers/default/index/routes/${line.id}/clusters`);
+                        const stopsData = await stopsResponse.json();
+
+                        // Add line information to each stop
+                        const stopsWithLineInfo = stopsData.map(stop => ({
+                            ...stop,
+                            properties: {
+                                ...stop,
+                                tramName: line.shortName,
+                                lineId: line.id,
+                                lineCode: line.code,
+                                lineColor: line.color
+                            }
+                        }));
+
+                        allTramStops.push(...stopsWithLineInfo);
+
+                        // Fetch geometry for this line in GeoJSON format
+                        const patternsResponse = await fetch(`https://data.mobilites-m.fr/api/lines/json?types=ligne&codes=${line.id}`);
+                        const patternsData = await patternsResponse.json();
+                        console.log("error line tram ?", patternsData)
+                        if (patternsData && patternsData.length > 0) {
+                            // Store the entire GeoJSON response
+                            lineGeometries[line.id] = {
+                                type: "FeatureCollection",
+                                features: patternsData
+                            };
+                        }
+                        lineGeometries[line.id] = patternsData;
+                    } catch (error) {
+                        console.error(`Error fetching data for tram line ${line.id}:`, error);
+                    }
+                }
+
+                // Convert to GeoJSON format for stops
+                const tramStopsGeoJson = {
+                    type: "FeatureCollection",
+                    features: allTramStops
+                };
+
+                setTramStops(tramStopsGeoJson);
+                setTramLineGeometries(lineGeometries);
+                setLoadingTramData(false);
+
+            } catch (error) {
+                console.error("Error fetching tram data:", error);
+                showNotification("Failed to load tram data.", "error");
+                setLoadingTramData(false);
+            }
+        };
+
+        fetchTramData();
+    }, []);
 
     const resetMarkers = () => {
         setStart(null);
@@ -359,6 +520,10 @@ const GrenobleMap = () => {
         }
     }, [debouncedAddressEnd, setEnd]);
 
+    const toggleTramLines = () => {
+        setShowTramLines(!showTramLines);
+    };
+
     return (
         <div className="relative h-[100vh] w-[100vw]">
             <MapContainer zoomControl={false} center={position} zoom={13} className="h-full w-full">
@@ -375,6 +540,30 @@ const GrenobleMap = () => {
                     <ColoredRouteSegments legs={currentItinerary.legs}/>
                 )}
 
+                {/* Render tram lines */}
+                {showTramLines && <TramLines tramLines={tramLines} tramLineGeometries={tramLineGeometries} />}
+
+                {/* Render tram stops */}
+                {tramStops.features && tramStops.features.map((stop, index) => {
+                    const position = [stop.lat, stop.lon];
+                    const properties = stop.properties;
+                    const icon = createTramStopIcon(properties.lineColor || '007bff');
+
+                    return (
+                        <Marker
+                            // key={`tram-stop-${properties.id || index}`}
+                            position={position}
+                            icon={icon}
+                        >
+                            <Popup>
+                                <div>
+                                    <h3 className="font-bold">{properties.name || 'Tram Stop'}</h3>
+                                    <p><strong>Line:</strong> {properties.tramName}</p>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    );
+                })}
             </MapContainer>
 
             {/* Notification area */}
@@ -387,6 +576,17 @@ const GrenobleMap = () => {
                     />
                 </div>
             )}
+
+            {/* Toggle for tram lines */}
+            <div className="absolute bottom-32 right-5 z-[1000]">
+                <Button
+                    variant={showTramLines ? "default" : "outline"}
+                    onClick={toggleTramLines}
+                    disabled={loadingTramData}
+                >
+                    {loadingTramData ? "Loading Tram Data..." : (showTramLines ? "Hide Tram Lines" : "Show Tram Lines")}
+                </Button>
+            </div>
 
             {/* Control panel */}
             <div className="absolute bottom-5 left-5 z-[1000] bg-white rounded-lg shadow p-4 max-w-md">
