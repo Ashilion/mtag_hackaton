@@ -8,7 +8,7 @@ import {Input} from "@/components/ui/input";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.jsx"
 import {Button} from "@/components/ui/button";
 import {ToggleGroup, ToggleGroupItem} from "@/components/ui/toggle-group";
-import {ArrowLeft, ArrowRight, Bike, Footprints, Loader2, Navigation, Train} from "lucide-react";
+import {ArrowLeft, ArrowRight, Bike, Footprints, Loader2, Navigation, Train, Eye, EyeOff} from "lucide-react";
 import {Badge} from "@/components/ui/badge";
 import DateTimeSelector from "./DateTimeSelector";
 import {Notification} from "@/Notification.jsx";
@@ -283,7 +283,19 @@ const GrenobleMap = () => {
         const seconds = String(date.getSeconds()).padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
     };
+    // Add this helper function before the GrenobleMap component or inside it
+    const filterWalkOnlyTransitItineraries = (itineraries, transportMode) => {
+        if (transportMode !== "TRANSIT") {
+            // If not in transit mode, return all itineraries
+            return itineraries;
+        }
 
+        // Filter out itineraries that only contain WALK legs when in TRANSIT mode
+        return itineraries.filter(itinerary => {
+            // Check if this itinerary has any non-WALK legs
+            return itinerary.legs.some(leg => leg.mode !== "WALK");
+        });
+    };
     // Fetch itinerary when start, end, walkSpeed, bikeSpeed, or transportMode changes
     useEffect(() => {
         if (start && end) {
@@ -305,9 +317,19 @@ const GrenobleMap = () => {
                     const data = await response.json();
                     console.log(data);
                     if (data.plan && data.plan.itineraries.length > 0) {
-                        // Store all itineraries
-                        setItineraries(data.plan.itineraries.slice(0, 3)); // Get up to 3 itineraries
-                        setCurrentItineraryIndex(0); // Reset to first itinerary
+                        const filteredItineraries = filterWalkOnlyTransitItineraries(
+                            data.plan.itineraries.slice(0, 4), // Get up to 3 itineraries
+                            transportMode
+                        );
+
+                        if (filteredItineraries.length > 0) {
+                            // Store filtered itineraries
+                            setItineraries(filteredItineraries);
+                            setCurrentItineraryIndex(0); // Reset to first itinerary
+                        } else {
+                            setItineraries([]);
+                            showNotification("No public transit routes found. Only walking routes are available.", "info");
+                        }
                     } else {
                         // Clear itineraries if none found
                         setItineraries([]);
@@ -600,13 +622,13 @@ const GrenobleMap = () => {
             )}
 
             {/* Toggle for tram lines */}
-            <div className="absolute bottom-32 right-5 z-[1000]">
+            <div className="absolute bottom-24 right-2 z-[1000]">
                 <Button
-                    variant={showTramLines ? "default" : "outline"}
+                    variant={"outline"}
                     onClick={toggleTramLines}
                     disabled={loadingTramData}
                 >
-                    {loadingTramData ? "Loading Tram Data..." : (showTramLines ? "Hide Tram Lines" : "Show Tram Lines")}
+                    {loadingTramData ? "Loading Tram Data..." : (showTramLines ? <Eye/> : <EyeOff/>)}
                 </Button>
             </div>
 
