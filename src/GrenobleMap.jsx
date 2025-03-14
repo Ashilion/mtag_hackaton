@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, ZoomControl, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import "./leaflet_zoom.css"
 import L from "leaflet";
 import polyline from "@mapbox/polyline"; // For decoding OTP's polyline
 import { Input } from "@/components/ui/input";
@@ -93,6 +94,32 @@ function SetViewOnUser({ center }) {
 
     return null;
 }
+
+const FetchOnMove = ({ setData }) => {
+    const map = useMap();
+
+    useEffect(() => {
+        const fetchDataInViewbox = () => {
+            const bounds = map.getBounds();
+            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+            console.log(bbox);
+            setData(bbox);
+        };
+
+        map.whenReady(() => {
+            fetchDataInViewbox();
+        });
+
+        map.on("moveend", fetchDataInViewbox);
+        map.on("zoomend", fetchDataInViewbox);
+
+        return () => {
+            map.off("moveend", fetchDataInViewbox);
+            map.off("zoomend", fetchDataInViewbox);
+        };
+    }, [map, setData]);
+    return null;
+};
 
 function LocationMarkers({ setStart, setEnd, start, end }) {
     useMapEvents({
@@ -244,10 +271,10 @@ const GrenobleMap = () => {
     const [bikeSpeed, setBikeSpeed] = useState(15); // Default bike speed in km/h
     const [speedUnit, setSpeedUnit] = useState("km/h"); // Default unit
     const [transportMode, setTransportMode] = useState("TRANSIT"); // Default transport mode
-    const position = [45.1885, 5.7245]; // Grenoble center  
+    const position = [45.1885, 5.7245]; // Grenoble center
     const [mapCenter, setMapCenter] = useState(position);
     const [notification, setNotification] = useState(null);
-
+    const [viewBox, setViewBox] = useState("");
     // Show notification
     const showNotification = (message, type = 'success') => {
         setNotification({ message, type });
@@ -345,6 +372,11 @@ const GrenobleMap = () => {
         setMapCenter(position);
     };
 
+    const calculateIfMarkers = () => {
+        if(!start) alert("l'adresse de départ n'a pas été trouvée, normalement un point s'affiche automatiquement");
+        else if(!end) alert("l'adresse d'arrivée n'a pas été trouvée, normalement un point s'affiche automatiquement");
+    }
+
     const handleSpeedChange = (e) => {
         const value = parseFloat(e.target.value);
         if (transportMode === "WALK") {
@@ -402,9 +434,68 @@ const GrenobleMap = () => {
 
     const currentItinerary = itineraries[currentItineraryIndex];
 
+    function useDebounce(value, delay) {
+        const [debouncedValue, setDebouncedValue] = useState(value);
+
+        useEffect(() => {
+            const handler = setTimeout(() => {
+                setDebouncedValue(value);
+            }, delay);
+
+            return () => {
+                clearTimeout(handler);
+            };
+        }, [value, delay]);
+
+        return debouncedValue;
+    }
+
+    const [addressInit, setAddressInit] = useState('');
+    const [addressEnd, setAddressEnd] = useState('');
+    const debouncedAddressInit = useDebounce(addressInit, 500); // 500ms de délai
+    const debouncedAddressEnd = useDebounce(addressEnd, 500); // 500ms de délai
+
+    useEffect(() => {
+        if (debouncedAddressInit && viewBox) {
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(debouncedAddressInit)}&format=json&limit=1&viewbox=${viewBox}&bounded=1`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        const lat = parseFloat(data["0"]["lat"]);
+                        const lon = parseFloat(data["0"]["lon"]);
+                        console.log(lat,lon);
+                        setStart([lat, lon]);
+                    } else {
+                        console.error(`Adresse ${debouncedAddressInit} non trouvée`);
+                    }
+                })
+                .catch(error => console.error('Erreur lors du géocodage:', error));
+        }
+    }, [debouncedAddressInit, setStart]);
+
+    useEffect(() => {
+        if (debouncedAddressEnd && viewBox) {
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(debouncedAddressEnd)}&format=json&limit=1&viewbox=${viewBox}&bounded=1`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        const lat = parseFloat(data["0"]["lat"]);
+                        const lon = parseFloat(data["0"]["lon"]);
+                        console.log(lat,lon);
+                        setEnd([lat, lon]);
+                    } else {
+                        console.error(`Adresse ${debouncedAddressEnd} non trouvée`);
+                    }
+                })
+                .catch(error => console.error('Erreur lors du géocodage:', error));
+        }
+    }, [debouncedAddressEnd, setEnd]);
+
     return (
         <div className="relative h-[100vh] w-[100vw]">
-            <MapContainer center={position} zoom={13} className="h-full w-full">
+            <MapContainer zoomControl={false} center={position} zoom={13} className="h-full w-full">
+                <FetchOnMove setData={setViewBox} />
+                <ZoomControl position="bottomright" />
                 <TileLayer
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
@@ -494,6 +585,33 @@ const GrenobleMap = () => {
                     </div>
                 </div>
 
+                <Button onClick={resetMarkers} className="mt-4" disabled={!start && !end}>
+                    Reset Markers
+                </Button>
+            </div>
+            <div className="absolute top-5 left-5 z-[1000] bg-gray-50 rounded-lg shadow p-4 w-[300px]">
+                <h1 className="text-center">Cliquez sur la carte pour placer les points ou entrez les adresses :</h1>
+                <div className="flex flex-col items-center mt-4">
+                    <label className="mb-2">Adresse initiale</label>
+                    <Input
+                        type="text"
+                        placeholder="Entrez l'adresse initiale"
+                        onChange={(e) => setAddressInit(e.target.value)}
+                        className="mb-4 w-full"
+                    />
+                    <label className="mb-2">Adresse finale</label>
+                    <Input
+                        type="text"
+                        placeholder="Entrez l'adresse finale"
+                        onChange={(e) => setAddressEnd(e.target.value)}
+                        className="w-full"
+                    />
+                </div>
+
+
+                <Button onClick={calculateIfMarkers} className="mt-4">
+                    Calculer
+                </Button>
                 {/* Itineraries section */}
                 {itineraries.length > 0 && (
                     <div className="mt-4">
