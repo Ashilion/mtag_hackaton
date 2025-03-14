@@ -28,6 +28,10 @@ export const ItineraryCard = ({itinerary, index, isActive, carbonFootprint, carC
         return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
     };
 
+    const formatCarbon = (kg)=> {
+        return kg >= 1 ? `${kg.toFixed(2)} kg CO2e` : `${(kg * 1000).toFixed(2)} g CO2e`;
+    };
+
     const formatDistance = (meters) => {
         if (!meters) return "Not set";
         return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters.toFixed(0)} m`;
@@ -105,11 +109,11 @@ export const ItineraryCard = ({itinerary, index, isActive, carbonFootprint, carC
                         <div className="flex justify-between text-sm font-medium">
                             <div>
                                 <p className="font-bold">Carbon Footprint</p>
-                                <p className="text-teal-500">{carbonFootprint}</p>
+                                <p className="text-teal-500">{formatCarbon(carbonFootprint)}</p>
                             </div>
                             <div className="text-right">
                                 <p className="font-bold">If it was by car</p>
-                                <p className="text-orange-300">{carCarbonFootprint}</p>
+                                <p className="text-orange-300">{formatCarbon(carCarbonFootprint)}</p>
                             </div>
                         </div>
                         <Separator/>
