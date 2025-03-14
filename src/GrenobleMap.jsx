@@ -358,14 +358,6 @@ const GrenobleMap = () => {
                         // Fetch geometry for this line in GeoJSON format
                         const patternsResponse = await fetch(`https://data.mobilites-m.fr/api/lines/json?types=ligne&codes=${line.id}`);
                         const patternsData = await patternsResponse.json();
-                        console.log("error line tram ?", patternsData)
-                        if (patternsData && patternsData.length > 0) {
-                            // Store the entire GeoJSON response
-                            lineGeometries[line.id] = {
-                                type: "FeatureCollection",
-                                features: patternsData
-                            };
-                        }
                         lineGeometries[line.id] = patternsData;
                     } catch (error) {
                         console.error(`Error fetching data for tram line ${line.id}:`, error);
