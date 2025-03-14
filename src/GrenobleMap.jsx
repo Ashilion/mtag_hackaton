@@ -588,30 +588,6 @@ const GrenobleMap = () => {
                 <Button onClick={resetMarkers} className="mt-4" disabled={!start && !end}>
                     Reset Markers
                 </Button>
-            </div>
-            <div className="absolute top-5 left-5 z-[1000] bg-gray-50 rounded-lg shadow p-4 w-[300px]">
-                <h1 className="text-center">Cliquez sur la carte pour placer les points ou entrez les adresses :</h1>
-                <div className="flex flex-col items-center mt-4">
-                    <label className="mb-2">Adresse initiale</label>
-                    <Input
-                        type="text"
-                        placeholder="Entrez l'adresse initiale"
-                        onChange={(e) => setAddressInit(e.target.value)}
-                        className="mb-4 w-full"
-                    />
-                    <label className="mb-2">Adresse finale</label>
-                    <Input
-                        type="text"
-                        placeholder="Entrez l'adresse finale"
-                        onChange={(e) => setAddressEnd(e.target.value)}
-                        className="w-full"
-                    />
-                </div>
-
-
-                <Button onClick={calculateIfMarkers} className="mt-4">
-                    Calculer
-                </Button>
                 {/* Itineraries section */}
                 {itineraries.length > 0 && (
                     <div className="mt-4">
@@ -676,6 +652,31 @@ const GrenobleMap = () => {
                         )}
                     </div>
                 )}
+            </div>
+            <div className="absolute top-5 right-5 z-[1000] bg-gray-50 rounded-lg shadow p-4 w-[300px]">
+                <h1 className="text-center">Cliquez sur la carte pour placer les points ou entrez les adresses :</h1>
+                <div className="flex flex-col items-center mt-4">
+                    <label className="mb-2">Adresse initiale</label>
+                    <Input
+                        type="text"
+                        placeholder="Entrez l'adresse initiale"
+                        onChange={(e) => setAddressInit(e.target.value)}
+                        className="mb-4 w-full"
+                    />
+                    <label className="mb-2">Adresse finale</label>
+                    <Input
+                        type="text"
+                        placeholder="Entrez l'adresse finale"
+                        onChange={(e) => setAddressEnd(e.target.value)}
+                        className="w-full"
+                    />
+                </div>
+
+
+                <Button onClick={calculateIfMarkers} className="mt-4">
+                    Calculer
+                </Button>
+
             </div>
         </div>
     );
