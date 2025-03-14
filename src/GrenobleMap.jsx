@@ -8,10 +8,23 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem} from "@/components/ui/select.jsx"
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Bike, Footprints, Train, ArrowLeft, ArrowRight, Bus, Car, Navigation, Loader2, AlertCircle } from "lucide-react";
+import { Bike, Footprints, Train, ArrowLeft, ArrowRight, Bus, Car, Navigation, Loader2, AlertCircle, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import DateTimeSelector from "./DateTimeSelector"; // Create this as a separate file
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -163,6 +176,10 @@ const ItineraryCard = ({ itinerary, index, isActive }) => {
     const formatDistance = (meters) => {
         if (!meters) return "Not set";
         return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters.toFixed(0)} m`;
+    };
+
+    const formatDateTime = (timestamp) => {
+        return new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     };
 
     // Calculate total distance from all legs
@@ -385,6 +402,8 @@ const GrenobleMap = () => {
     const [mapCenter, setMapCenter] = useState(position);
     const [notification, setNotification] = useState(null);
     const [viewBox, setViewBox] = useState("");
+
+    const [departureDateTime, setDepartureDateTime] = useState(new Date());
     // Show notification
     const showNotification = (message, type = 'success') => {
         setNotification({ message, type });
@@ -393,6 +412,11 @@ const GrenobleMap = () => {
     // Clear notification
     const clearNotification = () => {
         setNotification(null);
+    };
+
+    // Handle date and time changes
+    const handleDateTimeChange = (dateTime) => {
+        setDepartureDateTime(dateTime);
     };
 
     const getGeolocation = () => {
@@ -439,6 +463,20 @@ const GrenobleMap = () => {
         );
     };
 
+    const formatDateForApi = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const formatTimeForApi = (date) => {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    };
+
     // Fetch itinerary when start, end, walkSpeed, bikeSpeed, or transportMode changes
     useEffect(() => {
         if (start && end) {
@@ -448,7 +486,11 @@ const GrenobleMap = () => {
                         transportMode === "WALK" || transportMode === "" || transportMode === "TRAM" || transportMode === "TRANSIT"
                             ? (speedUnit === "km/h" ? walkSpeed / 3.6 : (1000 / walkSpeed) / 60)
                             : bikeSpeed / 3.6; // Convert km/h to m/s for bike
-                    const url = `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=2025-03-13&time=08:00:00&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}&numItineraries=3`
+
+                    // Format date and time for API
+                    const formattedDate = formatDateForApi(departureDateTime);
+                    const formattedTime = formatTimeForApi(departureDateTime);
+                    const url = `https://data.mobilites-m.fr/api/routers/default/plan?fromPlace=${start[0]},${start[1]}&toPlace=${end[0]},${end[1]}&mode=${transportMode}&date=${formattedDate}&time=${formattedTime}&walkSpeed=${speedInMps}&bikeSpeed=${speedInMps}&numItineraries=3`
                     console.log(url);
                     const response = await fetch(
                         url
@@ -471,7 +513,7 @@ const GrenobleMap = () => {
             };
             fetchItinerary();
         }
-    }, [start, end, walkSpeed, bikeSpeed, speedUnit, transportMode]);
+    }, [start, end, walkSpeed, bikeSpeed, speedUnit, transportMode, departureDateTime]);
 
     const resetMarkers = () => {
         setStart(null);
@@ -649,6 +691,10 @@ const GrenobleMap = () => {
                         </ToggleGroupItem>
                     </ToggleGroup>
                 </div>
+                <div className="mb-4">
+                    <h3 className="font-medium mb-2">Departure Time</h3>
+                    <DateTimeSelector onDateTimeChange={handleDateTimeChange} />
+                </div>
                 <Button
                     onClick={getGeolocation}
                     className="flex items-center"
@@ -741,7 +787,7 @@ const GrenobleMap = () => {
                                 <p>Travel Time: {formatTime(currentItinerary.duration)}</p>
                                 <p>Distance: {formatDistance(currentItinerary.legs.reduce((sum, leg) => sum + leg.distance, 0))}</p>
 
-                                <div className="flex flex-wrap gap-1 mt-1 items-center">
+                                <div className="flex flex-wrap gap-1 mt-1 items-center max-w-96">
                                     <p>Transport: </p>
                                     {currentItinerary.legs.map((leg, idx) => (
                                         <Badge
