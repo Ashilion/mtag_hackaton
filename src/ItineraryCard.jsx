@@ -15,6 +15,7 @@ import {
 import {Separator} from "@/components/ui/separator.jsx";
 import {getRouteColor} from "@/utils/GetRouteColor.jsx";
 import {getTransportIcon} from "@/utils/GetTransportIcon.jsx";
+import {getTransportDisplayName} from "@/utils/GetTransportDisplayName.jsx";
 
 export const ItineraryCard = ({itinerary, index, isActive, carbonFootprint, carCarbonFootprint}) => {
     const [showDetails, setShowDetails] = useState(false);
@@ -48,9 +49,23 @@ export const ItineraryCard = ({itinerary, index, isActive, carbonFootprint, carC
                 <CardContent className="">
                     <div className="flex justify-between items-center">
                         <Badge variant={isActive ? "default" : "outline"} className="mb-2">Route {index + 1}</Badge>
-                        <div className="flex items-center">
-                            {getTransportIcon(primaryMode)}
-                            <Badge variant="secondary">{primaryMode}</Badge>
+                        <div className="flex items-center max-w-40">
+                            {/*{getTransportIcon(primaryMode)}*/}
+                            {/*<Badge variant="secondary">{primaryMode}</Badge>*/}
+                            {itinerary.legs.map((leg, idx) => (
+                                <Badge
+                                    key={idx}
+                                    variant="outline"
+                                    className="ml-1 flex items-center"
+                                    style={{
+                                        backgroundColor: getRouteColor(leg.mode,leg.routeColor) + '20',
+                                        borderColor: getRouteColor(leg.mode,leg.routeColor)
+                                    }}
+                                >
+                                    {getTransportIcon(leg.mode)}
+                                    {getTransportDisplayName(leg) !== "WALK" && getTransportDisplayName(leg) }
+                                </Badge>
+                            ))}
                         </div>
                     </div>
                     <div className="flex justify-between items-center">

@@ -8,7 +8,7 @@ import {Input} from "@/components/ui/input";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.jsx"
 import {Button} from "@/components/ui/button";
 import {ToggleGroup, ToggleGroupItem} from "@/components/ui/toggle-group";
-import {ArrowLeft, ArrowRight, Bike, Footprints, Loader2, Navigation, Train, Eye, EyeOff} from "lucide-react";
+import {ArrowLeft, ArrowRight, Bike, Eye, EyeOff, Footprints, Loader2, Navigation, Train} from "lucide-react";
 import {Badge} from "@/components/ui/badge";
 import DateTimeSelector from "./DateTimeSelector";
 import {Notification} from "@/Notification.jsx";
@@ -19,7 +19,8 @@ import {endIcon} from "@/assets/EndIcon.jsx";
 import {getRouteColor} from "@/utils/GetRouteColor.jsx";
 import {getTransportIcon} from "@/utils/GetTransportIcon.jsx";
 import {SetViewOnUser} from "@/utils/SetViewOnUser.jsx";
-import {FetchOnMove} from "@/utils/FetchOnMove.jsx"; // Create this as a separate file
+import {FetchOnMove} from "@/utils/FetchOnMove.jsx";
+import {getTransportDisplayName} from "@/utils/GetTransportDisplayName.jsx"; // Create this as a separate file
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -176,14 +177,6 @@ const TramLines = ({ tramLines, tramLineGeometries }) => {
             })}
         </>
     );
-};
-
-// Function to get display name for transport mode with tram/bus line
-const getTransportDisplayName = (leg) => {
-    if (leg.mode === "TRAM" || leg.mode === "BUS") {
-        return leg.routeShortName ? `${leg.mode} ${leg.routeShortName}` : leg.mode;
-    }
-    return leg.mode;
 };
 
 const GrenobleMap = () => {
@@ -423,7 +416,7 @@ const GrenobleMap = () => {
 
     const handleSpeedChange = (e) => {
         const value = parseFloat(e.target.value);
-        if (transportMode === "WALK") {
+        if (transportMode === "WALK"|| transportMode === "TRANSIT") {
             if (speedUnit === "km/h" && value > 0 && value <= 36) {
                 setWalkSpeed(value);
             } else if (speedUnit === "min/km" && value > 4 && value <= 20) {
@@ -656,33 +649,39 @@ const GrenobleMap = () => {
                     <h3 className="font-medium mb-2">Departure Time</h3>
                     <DateTimeSelector onDateTimeChange={handleDateTimeChange}/>
                 </div>
-                <Button
-                    onClick={getGeolocation}
-                    className="flex items-center"
-                    disabled={loadingLocation}
-                >
-                    {loadingLocation ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin"/>
-                    ) : (
-                        <Navigation className="h-4 w-4 mr-2"/>
-                    )}
-                    {loadingLocation ? "Locating..." : "Use My Location"}
-                </Button>
+                <div className="flex items-center justify-center mt-4">
+                    <Button
+                        onClick={getGeolocation}
+                        className="flex items-center"
+                        disabled={loadingLocation}
+                    >
+                        {loadingLocation ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin"/>
+                        ) : (
+                            <Navigation className="h-4 w-4 mr-2"/>
+                        )}
+                        {loadingLocation ? "Locating..." : "Use My Location"}
+                    </Button>
+                    <Button onClick={resetMarkers} className="ml-auto" disabled={!start && !end} variant={"outline"}>
+                        Reset
+                    </Button>
+                </div>
+
                 <div className="mb-4 mt-2">
-                    <p>Start: {start ? `${start[0].toFixed(4)}, ${start[1].toFixed(4)}` : "Not set"}</p>
-                    <p>End: {end ? `${end[0].toFixed(4)}, ${end[1].toFixed(4)}` : "Not set"}</p>
+                    {/*<p>Start: {start ? `${start[0].toFixed(4)}, ${start[1].toFixed(4)}` : "Not set"}</p>*/}
+                    {/*<p>End: {end ? `${end[0].toFixed(4)}, ${end[1].toFixed(4)}` : "Not set"}</p>*/}
 
                     <div className="flex items-center mt-2">
                         <Input
                             type="number"
                             step="0.1"
-                            min={transportMode === "WALK" ? (speedUnit === "km/h" ? "0.1" : "4") : "0.1"}
-                            max={transportMode === "WALK" ? (speedUnit === "km/h" ? "36" : "20") : "36"}
-                            value={transportMode === "WALK" ? walkSpeed.toFixed(1) : bikeSpeed.toFixed(1)}
+                            min={transportMode === "WALK" || transportMode === "TRANSIT"? (speedUnit === "km/h" ? "0.1" : "4") : "0.1"}
+                            max={transportMode === "WALK" || transportMode === "TRANSIT"? (speedUnit === "km/h" ? "36" : "20") : "36"}
+                            value={transportMode === "WALK" || transportMode === "TRANSIT" ? walkSpeed.toFixed(1) : bikeSpeed.toFixed(1)}
                             onChange={handleSpeedChange}
                             className="mr-2 w-24"
                         />
-                        {transportMode === "WALK" ? (
+                        {transportMode === "WALK" || transportMode === "TRANSIT" ? (
                             <Select value={speedUnit} onValueChange={handleSpeedUnitChange}>
                                 <SelectTrigger className="w-24">
                                     <SelectValue placeholder="Select unit"/>
@@ -695,10 +694,6 @@ const GrenobleMap = () => {
                         ) : (
                             <p className="text-sm">km/h</p>
                         )}
-
-                        <Button onClick={resetMarkers} className="ml-auto" disabled={!start && !end}>
-                            Reset
-                        </Button>
                     </div>
                 </div>
                 {/* Itineraries section */}
@@ -740,31 +735,31 @@ const GrenobleMap = () => {
                             ))}
                         </div>
 
-                        {currentItinerary && (
-                            <div className="mt-4 pt-2 border-t">
-                                <p className="font-medium">Current Route Details:</p>
-                                <p>Travel Time: {formatTime(currentItinerary.duration)}</p>
-                                <p>Distance: {formatDistance(currentItinerary.legs.reduce((sum, leg) => sum + leg.distance, 0))}</p>
+                        {/*{currentItinerary && (*/}
+                        {/*    <div className="mt-4 pt-2 border-t">*/}
+                        {/*        <p className="font-medium">Current Route Details:</p>*/}
+                        {/*        <p>Travel Time: {formatTime(currentItinerary.duration)}</p>*/}
+                        {/*        <p>Distance: {formatDistance(currentItinerary.legs.reduce((sum, leg) => sum + leg.distance, 0))}</p>*/}
 
-                                <div className="flex flex-wrap gap-1 mt-1 items-center max-w-96">
-                                    <p>Transport: </p>
-                                    {currentItinerary.legs.map((leg, idx) => (
-                                        <Badge
-                                            key={idx}
-                                            variant="outline"
-                                            className="ml-1 flex items-center"
-                                            style={{
-                                                backgroundColor: getRouteColor(leg.mode,leg.routeColor) + '20',
-                                                borderColor: getRouteColor(leg.mode,leg.routeColor)
-                                            }}
-                                        >
-                                            {getTransportIcon(leg.mode)}
-                                            {getTransportDisplayName(leg)}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        {/*        <div className="flex flex-wrap gap-1 mt-1 items-center max-w-96">*/}
+                        {/*            <p>Transport: </p>*/}
+                        {/*            {currentItinerary.legs.map((leg, idx) => (*/}
+                        {/*                <Badge*/}
+                        {/*                    key={idx}*/}
+                        {/*                    variant="outline"*/}
+                        {/*                    className="ml-1 flex items-center"*/}
+                        {/*                    style={{*/}
+                        {/*                        backgroundColor: getRouteColor(leg.mode,leg.routeColor) + '20',*/}
+                        {/*                        borderColor: getRouteColor(leg.mode,leg.routeColor)*/}
+                        {/*                    }}*/}
+                        {/*                >*/}
+                        {/*                    {getTransportIcon(leg.mode)}*/}
+                        {/*                    {getTransportDisplayName(leg)}*/}
+                        {/*                </Badge>*/}
+                        {/*            ))}*/}
+                        {/*        </div>*/}
+                        {/*    </div>*/}
+                        {/*)}*/}
                     </div>
                 )}
             </div>
