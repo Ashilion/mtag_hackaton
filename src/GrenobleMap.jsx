@@ -8,7 +8,7 @@ import {Input} from "@/components/ui/input";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.jsx"
 import {Button} from "@/components/ui/button";
 import {ToggleGroup, ToggleGroupItem} from "@/components/ui/toggle-group";
-import {ArrowLeft, ArrowRight, Bike, Eye, EyeOff, Footprints, Loader2, Navigation, Train} from "lucide-react";
+import {ArrowLeft, ArrowRight, Bike, Eye, EyeOff, Footprints, Loader2, Navigation, Train , ChevronDown, ChevronUp} from "lucide-react";
 import {Badge} from "@/components/ui/badge";
 import DateTimeSelector from "./DateTimeSelector";
 import {Notification} from "@/Notification.jsx";
@@ -204,6 +204,19 @@ const GrenobleMap = () => {
     const [carbonFootprint, setCarbonFootprint] = useState(null);
     const [carCarbonFootprint, setCarCarbonFootprint] = useState(null);
     const [departureDateTime, setDepartureDateTime] = useState(new Date());
+    const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkIsMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+
+        checkIsMobile();
+        window.addEventListener('resize', checkIsMobile);
+
+        return () => window.removeEventListener('resize', checkIsMobile);
+    }, []);
     // Show notification
     const showNotification = (message, type = 'success') => {
         setNotification({ message, type });
@@ -626,29 +639,46 @@ const GrenobleMap = () => {
             </div>
 
             {/* Control panel */}
-            <div className="absolute bottom-5 left-5 z-[1000] bg-white rounded-lg shadow p-4 max-w-md">
-                <div className="flex items-center mb-4">
-                    <ToggleGroup
-                        type="single"
-                        value={transportMode}
-                        onValueChange={handleTransportModeChange}
+            <div className={`absolute ${isMobile ? 'bottom-0 left-0 right-0 rounded-b-none rounded-t-lg max-h-[80vh] overflow-y-auto' : 'bottom-5 left-5 max-w-md'} z-[1000] bg-white rounded-lg shadow transition-all duration-300`}>
+                {/* Collapse toggle for mobile */}
+                {isMobile && (
+                    <div
+                        className="flex justify-center  border-b cursor-pointer"
+                        onClick={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
                     >
-                        <ToggleGroupItem value="WALK" aria-label="Toggle walk" className="cursor-pointer">
-                            <Footprints className="h-5 w-5"/>
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="BICYCLE" aria-label="Toggle bike" className="cursor-pointer">
-                            <Bike className="h-5 w-5"/>
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="TRANSIT" aria-label="Toggle public transportation"
-                                         className="cursor-pointer">
-                            <Train className="h-5 w-5"/>
-                        </ToggleGroupItem>
-                    </ToggleGroup>
-                </div>
-                <div className="mb-4">
-                    <h3 className="font-medium mb-2">Departure Time</h3>
-                    <DateTimeSelector onDateTimeChange={handleDateTimeChange}/>
-                </div>
+                        {isControlPanelCollapsed ?
+                            <ChevronUp className="h-5 w-5 text-gray-500" /> :
+                            <ChevronDown className="h-5 w-5 text-gray-500" />
+                        }
+                    </div>
+                )}
+
+                <div className={`px-4 py-2 ${isControlPanelCollapsed && isMobile ? 'hidden' : 'block'}`}>
+                    {/* Keep all your existing control panel content here */}
+                    <div className="flex items-center mb-2">
+                        <ToggleGroup
+                            type="single"
+                            value={transportMode}
+                            onValueChange={handleTransportModeChange}
+                        >
+                            <ToggleGroupItem value="WALK" aria-label="Toggle walk" className="cursor-pointer">
+                                <Footprints className="h-5 w-5"/>
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="BICYCLE" aria-label="Toggle bike" className="cursor-pointer">
+                                <Bike className="h-5 w-5"/>
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="TRANSIT" aria-label="Toggle public transportation"
+                                             className="cursor-pointer">
+                                <Train className="h-5 w-5"/>
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                    </div>
+
+                    {/* The rest of your control panel content */}
+                    <div className="mb-2">
+                        <h3 className="font-medium mb-2">Departure Time</h3>
+                        <DateTimeSelector onDateTimeChange={handleDateTimeChange}/>
+                    </div>
                 <div className="flex items-center justify-center mt-4">
                     <Button
                         onClick={getGeolocation}
@@ -667,7 +697,7 @@ const GrenobleMap = () => {
                     </Button>
                 </div>
 
-                <div className="mb-4 mt-2">
+                <div className="">
                     {/*<p>Start: {start ? `${start[0].toFixed(4)}, ${start[1].toFixed(4)}` : "Not set"}</p>*/}
                     {/*<p>End: {end ? `${end[0].toFixed(4)}, ${end[1].toFixed(4)}` : "Not set"}</p>*/}
 
@@ -698,7 +728,7 @@ const GrenobleMap = () => {
                 </div>
                 {/* Itineraries section */}
                 {itineraries.length > 0 && (
-                    <div className="mt-4">
+                    <div className="mt-2">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="font-medium">Available Routes</h3>
                             <div className="flex space-x-2">
@@ -721,7 +751,7 @@ const GrenobleMap = () => {
                             </div>
                         </div>
 
-                        <div className="space-y-2 overflow-y-auto">
+                        <div className={`${isMobile ? 'flex space-x-2' : 'flex sm:flex-col flex-row space-y-1 space-x-2'} overflow-y-auto`}>
                             {itineraries.map((itinerary, index) => (
                                 <div key={index} onClick={() => selectItinerary(index)} className="cursor-pointer">
                                     <ItineraryCard
@@ -762,6 +792,7 @@ const GrenobleMap = () => {
                         {/*)}*/}
                     </div>
                 )}
+            </div>
             </div>
             <SearchAdress onChange={(e) => setAddressInit(e.target.value)}
                           onChange1={(e) => setAddressEnd(e.target.value)} onClick={calculateIfMarkers}/>
